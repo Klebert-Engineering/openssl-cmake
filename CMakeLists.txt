@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(OpenSSL)
 ProcessorCount(N)
 
 # Set OpenSSL install directory
-set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/OpenSSL-install)
+set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/openssl-install)
 
 # Use find_package so Perl executable can be set in cmake
 find_package(Perl REQUIRED)
@@ -113,6 +113,13 @@ ExternalProject_Add(openssl_build
 # Create imported targets for OpenSSL::SSL and OpenSSL::Crypto
 add_library(OpenSSL::SSL STATIC IMPORTED GLOBAL)
 add_library(OpenSSL::Crypto STATIC IMPORTED GLOBAL)
+
+# Create the include and lib directories early to avoid CMake configuration errors
+file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/include)
+file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+    file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib64)
+endif()
 
 # Set target properties - use standard lib path
 # On Windows, try both naming conventions
