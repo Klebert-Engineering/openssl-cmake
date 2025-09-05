@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(OpenSSL)
 ProcessorCount(N)
 
 # Set OpenSSL install directory
-set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/openssl-install)
+set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/OpenSSL-install)
 
 # Use find_package so Perl executable can be set in cmake
 find_package(Perl REQUIRED)
@@ -32,9 +32,9 @@ find_package(Perl REQUIRED)
 # Determine platform-specific OpenSSL configuration
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${OpenSSL_SOURCE_DIR}/Configure VC-WIN64A --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN64A --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${OpenSSL_SOURCE_DIR}/Configure VC-WIN32 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN32 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     endif()
     set(OPENSSL_BUILD_COMMAND nmake)
     set(OPENSSL_INSTALL_COMMAND nmake install_sw)
@@ -43,9 +43,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(OPENSSL_LIB_SUFFIX ".lib")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-        set(OPENSSL_CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure darwin64-arm64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-arm64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure darwin64-x86_64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-x86_64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     endif()
     if(NOT N EQUAL 0)
         set(OPENSSL_BUILD_COMMAND make -j${N})
@@ -59,11 +59,11 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 else() # Linux and other Unix-like systems
     # Detect architecture for Linux
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-        set(OPENSSL_CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure linux-aarch64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-aarch64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(OPENSSL_CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure linux-x86_64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86_64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${OpenSSL_SOURCE_DIR}/Configure linux-x86 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
     endif()
     if(NOT N EQUAL 0)
         set(OPENSSL_BUILD_COMMAND make -j${N})
@@ -88,7 +88,7 @@ endif()
 
 # Build OpenSSL using ExternalProject
 ExternalProject_Add(openssl_build
-    SOURCE_DIR ${OpenSSL_SOURCE_DIR}
+    SOURCE_DIR ${openssl_SOURCE_DIR}
     CONFIGURE_COMMAND ${OPENSSL_CONFIGURE_COMMAND}
     BUILD_COMMAND ${OPENSSL_BUILD_COMMAND}
     INSTALL_COMMAND ${OPENSSL_INSTALL_COMMAND}
