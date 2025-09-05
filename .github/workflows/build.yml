@@ -1,0 +1,59 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y perl build-essential nasm
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Perl is pre-installed on macOS runners
+        # Xcode Command Line Tools are pre-installed
+        # NASM is available via Homebrew
+        brew install nasm
+
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Install Strawberry Perl and NASM for Windows
+        choco install strawberryperl nasm -y
+
+    - name: Configure CMake
+      run: |
+        cd test
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: |
+        cd test
+        cmake --build build --config Release
+
+    - name: Test (Ubuntu/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd test
+        ./build/openssl_test
+
+    - name: Test (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd test
+        .\build\Release\openssl_test.exe
