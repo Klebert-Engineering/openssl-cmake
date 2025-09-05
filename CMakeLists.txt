@@ -18,7 +18,7 @@ FetchContent_Declare(
     GIT_TAG        ${OPENSSL_VERSION}
     GIT_SHALLOW    TRUE
 )
-FetchContent_MakeAvailable(openssl)
+FetchContent_MakeAvailable(OpenSSL)
 
 # Get number of processor cores for parallel builds
 ProcessorCount(N)
