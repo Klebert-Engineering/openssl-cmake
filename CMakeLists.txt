@@ -1,6 +1,9 @@
 # FetchContent-Based OpenSSL CMake Integration
 # Custom OpenSSL build configuration using ExternalProject
 
+cmake_minimum_required(VERSION 3.14)
+
+include(FetchContent)
 include(ExternalProject)
 include(ProcessorCount)
 
