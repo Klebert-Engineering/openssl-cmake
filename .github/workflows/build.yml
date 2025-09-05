@@ -35,8 +35,26 @@ jobs:
       run: |
         # Install Strawberry Perl and NASM for Windows
         choco install strawberryperl nasm -y
+        # Refresh PATH to include newly installed tools
+        refreshenv
+        # Verify NASM is available
+        nasm --version
 
-    - name: Configure CMake
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        cd test
+        echo Current PATH: %PATH%
+        echo Looking for NASM...
+        where nasm
+        if errorlevel 1 echo NASM not found in PATH
+        nasm --version
+        if errorlevel 1 echo NASM version check failed
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Configure CMake (Unix)
+      if: matrix.os != 'windows-latest'
       run: |
         cd test
         cmake -B build -DCMAKE_BUILD_TYPE=Release
