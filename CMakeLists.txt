@@ -7,9 +7,12 @@ include(FetchContent)
 include(ExternalProject)
 include(ProcessorCount)
 
-# Allow users to override the OpenSSL version
+# Option to build shared libraries (defaults to static)
+option(OPENSSL_SHARED "Build shared libraries instead of static" OFF)
+
+# Require OPENSSL_VERSION to be set - no fallback
 if(NOT DEFINED OPENSSL_VERSION)
-    set(OPENSSL_VERSION "openssl-3.5.1")
+    message(FATAL_ERROR "OPENSSL_VERSION must be set. Example: -DOPENSSL_VERSION=openssl-3.5.1")
 endif()
 
 FetchContent_Declare(
@@ -29,23 +32,37 @@ set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/openssl-install)
 # Use find_package so Perl executable can be set in cmake
 find_package(Perl REQUIRED)
 
+# Set shared/static configuration
+if(OPENSSL_SHARED)
+    set(OPENSSL_SHARED_FLAG "shared")
+    set(OPENSSL_LIB_TYPE SHARED)
+else()
+    set(OPENSSL_SHARED_FLAG "no-shared")
+    set(OPENSSL_LIB_TYPE STATIC)
+endif()
+
 # Determine platform-specific OpenSSL configuration
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN64A --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN64A --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN32 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN32 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
     set(OPENSSL_BUILD_COMMAND nmake)
     set(OPENSSL_INSTALL_COMMAND nmake install_sw)
     # On Windows, OpenSSL may generate libraries with lib prefix
     set(OPENSSL_LIB_PREFIX "lib")
-    set(OPENSSL_LIB_SUFFIX ".lib")
+    if(OPENSSL_SHARED)
+        set(OPENSSL_LIB_SUFFIX ".lib")
+        set(OPENSSL_DLL_SUFFIX ".dll")
+    else()
+        set(OPENSSL_LIB_SUFFIX ".lib")
+    endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-arm64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-arm64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-x86_64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-x86_64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
     if(NOT N EQUAL 0)
         set(OPENSSL_BUILD_COMMAND make -j${N})
@@ -55,15 +72,19 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         set(OPENSSL_INSTALL_COMMAND make install_sw)
     endif()
     set(OPENSSL_LIB_PREFIX "lib")
-    set(OPENSSL_LIB_SUFFIX ".a")
+    if(OPENSSL_SHARED)
+        set(OPENSSL_LIB_SUFFIX ".dylib")
+    else()
+        set(OPENSSL_LIB_SUFFIX ".a")
+    endif()
 else() # Linux and other Unix-like systems
     # Detect architecture for Linux
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-aarch64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-aarch64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86_64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86_64 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     else()
-        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl no-shared no-tests)
+        set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
     if(NOT N EQUAL 0)
         set(OPENSSL_BUILD_COMMAND make -j${N})
@@ -73,7 +94,11 @@ else() # Linux and other Unix-like systems
         set(OPENSSL_INSTALL_COMMAND make install_sw)
     endif()
     set(OPENSSL_LIB_PREFIX "lib")
-    set(OPENSSL_LIB_SUFFIX ".a")
+    if(OPENSSL_SHARED)
+        set(OPENSSL_LIB_SUFFIX ".so")
+    else()
+        set(OPENSSL_LIB_SUFFIX ".a")
+    endif()
 endif()
 
 # Determine the library directory used by OpenSSL on Linux
@@ -94,14 +119,20 @@ ExternalProject_Add(openssl_build
     INSTALL_COMMAND ${OPENSSL_INSTALL_COMMAND}
     BUILD_IN_SOURCE 1
     BUILD_BYPRODUCTS 
+        # Windows libraries (both static and shared use .lib for linking)
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}crypto${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>:${OPENSSL_INSTALL_DIR}/lib/ssl${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>:${OPENSSL_INSTALL_DIR}/lib/crypto${OPENSSL_LIB_SUFFIX}>
+        # Windows DLLs (for shared builds)
+        $<$<AND:$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>,$<BOOL:${OPENSSL_SHARED}>>:${OPENSSL_INSTALL_DIR}/bin/${OPENSSL_LIB_PREFIX}ssl-3-x64${OPENSSL_DLL_SUFFIX}>
+        $<$<AND:$<STREQUAL:${CMAKE_SYSTEM_NAME},Windows>,$<BOOL:${OPENSSL_SHARED}>>:${OPENSSL_INSTALL_DIR}/bin/${OPENSSL_LIB_PREFIX}crypto-3-x64${OPENSSL_DLL_SUFFIX}>
+        # Linux libraries
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>:${OPENSSL_INSTALL_DIR}/${OPENSSL_LIBDIR}/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>:${OPENSSL_INSTALL_DIR}/${OPENSSL_LIBDIR}/${OPENSSL_LIB_PREFIX}crypto${OPENSSL_LIB_SUFFIX}>
         $<$<AND:$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>,$<NOT:$<STREQUAL:${OPENSSL_LIBDIR},lib>>>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}>
         $<$<AND:$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>,$<NOT:$<STREQUAL:${OPENSSL_LIBDIR},lib>>>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}crypto${OPENSSL_LIB_SUFFIX}>
+        # macOS libraries
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Darwin>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Darwin>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}crypto${OPENSSL_LIB_SUFFIX}>
     LOG_CONFIGURE ON
@@ -111,8 +142,8 @@ ExternalProject_Add(openssl_build
 )
 
 # Create imported targets for OpenSSL::SSL and OpenSSL::Crypto
-add_library(OpenSSL::SSL STATIC IMPORTED GLOBAL)
-add_library(OpenSSL::Crypto STATIC IMPORTED GLOBAL)
+add_library(OpenSSL::SSL ${OPENSSL_LIB_TYPE} IMPORTED GLOBAL)
+add_library(OpenSSL::Crypto ${OPENSSL_LIB_TYPE} IMPORTED GLOBAL)
 
 # Create the include and lib directories early to avoid CMake configuration errors
 file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/include)
@@ -120,18 +151,37 @@ file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
     file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/lib64)
 endif()
+# Create bin directory for Windows DLLs
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND OPENSSL_SHARED)
+    file(MAKE_DIRECTORY ${OPENSSL_INSTALL_DIR}/bin)
+endif()
 
 # Set target properties - use standard lib path
-# On Windows, try both naming conventions
+# On Windows, handle both static and shared libraries
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set_target_properties(OpenSSL::SSL PROPERTIES
-        IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/ssl${OPENSSL_LIB_SUFFIX}
-        INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
-    )
-    set_target_properties(OpenSSL::Crypto PROPERTIES
-        IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/crypto${OPENSSL_LIB_SUFFIX}
-        INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
-    )
+    if(OPENSSL_SHARED)
+        # For shared libraries on Windows, we need both the DLL and the import library
+        set_target_properties(OpenSSL::SSL PROPERTIES
+            IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/bin/libssl-3-x64${OPENSSL_DLL_SUFFIX}
+            IMPORTED_IMPLIB ${OPENSSL_INSTALL_DIR}/lib/ssl${OPENSSL_LIB_SUFFIX}
+            INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+        )
+        set_target_properties(OpenSSL::Crypto PROPERTIES
+            IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/bin/libcrypto-3-x64${OPENSSL_DLL_SUFFIX}
+            IMPORTED_IMPLIB ${OPENSSL_INSTALL_DIR}/lib/crypto${OPENSSL_LIB_SUFFIX}
+            INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+        )
+    else()
+        # Static libraries
+        set_target_properties(OpenSSL::SSL PROPERTIES
+            IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/ssl${OPENSSL_LIB_SUFFIX}
+            INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+        )
+        set_target_properties(OpenSSL::Crypto PROPERTIES
+            IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/crypto${OPENSSL_LIB_SUFFIX}
+            INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INSTALL_DIR}/include
+        )
+    endif()
 else()
     set_target_properties(OpenSSL::SSL PROPERTIES
         IMPORTED_LOCATION ${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}

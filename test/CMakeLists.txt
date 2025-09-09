@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.14)
 project(OpenSSLTest)
 
+# Set required OpenSSL version
+set(OPENSSL_VERSION "openssl-3.5.1")
+
 # Include the OpenSSL integration
 include(../CMakeLists.txt)
 

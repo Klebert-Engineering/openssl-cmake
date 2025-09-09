@@ -8,10 +8,12 @@ on:
 
 jobs:
   build:
+    name: ${{ matrix.os }} - ${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [static, shared]
 
     steps:
     - uses: actions/checkout@v4
@@ -44,13 +46,21 @@ jobs:
         cd test
         nasm --version
         if errorlevel 1 echo NASM version check failed
-        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        if "${{ matrix.build_type }}" == "shared" (
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_SHARED=ON
+        ) else (
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_SHARED=OFF
+        )
 
     - name: Configure CMake (Unix)
       if: matrix.os != 'windows-latest'
       run: |
         cd test
-        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        if [ "${{ matrix.build_type }}" = "shared" ]; then
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_SHARED=ON
+        else
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_SHARED=OFF
+        fi
 
     - name: Build
       run: |

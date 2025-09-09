@@ -6,28 +6,47 @@ A cross-platform CMake module for building OpenSSL from source using FetchConten
 
 - **Cross-platform support**: Windows, macOS, and Linux (x86_64 and ARM64)
 - **Automatic dependency management**: Uses CMake's FetchContent to download OpenSSL source
-- **Static library builds**: Configures OpenSSL for static linking with `no-shared`
+- **Static and shared library builds**: Configurable via `OPENSSL_SHARED` option
 - **Parallel builds**: Automatically detects CPU cores for faster compilation
 - **Standard CMake targets**: Provides `OpenSSL::SSL` and `OpenSSL::Crypto` imported targets
 - **CI/CD tested**: GitHub Actions workflow tests builds across all supported platforms
 
 ## Usage
 
-Simply include this CMakeLists.txt in your project, or just add it via `add_subdirectory`:
+### Basic Usage
 
 ```cmake
+# REQUIRED: Set the OpenSSL version
+set(OPENSSL_VERSION "openssl-3.5.1")  # or any other version tag
+
+# Include the CMake module
 include(path/to/CMakeLists.txt)
 
 # Your targets can now link against OpenSSL
 target_link_libraries(your_target OpenSSL::SSL OpenSSL::Crypto)
 ```
 
-### Custom OpenSSL Version
+### Configuration Options
 
-To use a different OpenSSL version, set the `OPENSSL_VERSION` variable before including the CMakeLists.txt:
+#### OpenSSL Version (Required)
+
+The `OPENSSL_VERSION` variable must be set before including the CMakeLists.txt. There is no default fallback:
 
 ```cmake
-set(OPENSSL_VERSION "openssl-3.4.0")  # or any other version tag
+set(OPENSSL_VERSION "openssl-3.4.0")  # Required - no default
+include(path/to/CMakeLists.txt)
+```
+
+#### Static vs Shared Libraries
+
+Control whether to build static or shared libraries using the `OPENSSL_SHARED` option:
+
+```cmake
+set(OPENSSL_SHARED OFF)  # Default: OFF (static libraries)
+# or
+set(OPENSSL_SHARED ON)   # Build shared libraries (.dll/.so/.dylib)
+
+set(OPENSSL_VERSION "openssl-3.5.1")
 include(path/to/CMakeLists.txt)
 ```
 
@@ -41,9 +60,11 @@ include(path/to/CMakeLists.txt)
   - **macOS**: Xcode Command Line Tools
   - **Linux**: GCC/Clang and make
 
-## OpenSSL Version
+## Notes
 
-Default version is OpenSSL 3.5.1. Use the `OPENSSL_VERSION` variable to override (see Usage section above).
+- The `OPENSSL_VERSION` variable is required and must be set before including the CMake module
+- Default build type is static libraries. Use `OPENSSL_SHARED=ON` for shared libraries
+- On Windows, shared builds will produce both .lib (import libraries) and .dll files
 
 ## License
 
