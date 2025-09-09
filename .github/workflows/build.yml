@@ -18,6 +18,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache OpenSSL ExternalProject artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          test/build/_deps/openssl-src
+          test/build/_deps/openssl-install
+        key: ${{ runner.os }}-${{ matrix.build_type }}-openssl-${{ hashFiles('CMakeLists.txt', 'test/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.build_type }}-openssl-
+
     - name: Install dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |

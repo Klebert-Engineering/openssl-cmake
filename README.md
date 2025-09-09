@@ -50,13 +50,31 @@ set(OPENSSL_VERSION "openssl-3.5.1")
 include(path/to/CMakeLists.txt)
 ```
 
+#### Verbose Build Output
+
+Control whether to see OpenSSL build output in real-time:
+
+```cmake
+set(OPENSSL_VERBOSE ON)   # Default: ON (shows real-time output)
+# or
+set(OPENSSL_VERBOSE OFF)  # Quiet mode (logs to files only)
+
+set(OPENSSL_VERSION "openssl-3.5.1")
+include(path/to/CMakeLists.txt)
+```
+
+When `OPENSSL_VERBOSE` is ON (default), output is displayed directly to the console as the build progresses.
+When OFF, build output is logged to files in the build directory for later review.
+
+**Note:** This doesn't work on Windows yet.
+
 ## Requirements
 
 - CMake 3.14+
 - Perl (required for OpenSSL configuration)
 - NASM (Netwide Assembler) - required for OpenSSL builds
 - Platform-specific build tools:
-  - **Windows**: Visual Studio with nmake
+  - **Windows**: Visual Studio with nmake (install jom for parallel builds)
   - **macOS**: Xcode Command Line Tools
   - **Linux**: GCC/Clang and make
 
@@ -65,6 +83,16 @@ include(path/to/CMakeLists.txt)
 - The `OPENSSL_VERSION` variable is required and must be set before including the CMake module
 - Default build type is static libraries. Use `OPENSSL_SHARED=ON` for shared libraries
 - On Windows, shared builds will produce both .lib (import libraries) and .dll files
+
+### Windows: faster parallel builds (jom)
+
+- Install jom to parallelize the OpenSSL build step (nmake is single-threaded):
+  ```powershell
+  choco install jom -y
+  ```
+- After install, reconfigure your build. Our CMake will auto-detect jom and use `jom -j<N>`
+  (where N is the detected core count or `OPENSSL_JOBS` if set).
+- For live output during builds, prefer the Ninja generator; MSBuild buffers ExternalProject output.
 
 ## License
 
