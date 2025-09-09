@@ -36,7 +36,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         # Install Strawberry Perl and NASM for Windows
-        choco install strawberryperl nasm -y
+        choco install nasm jom -y
         echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Configure CMake (Windows)

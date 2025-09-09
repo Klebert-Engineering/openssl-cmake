@@ -10,9 +10,52 @@ include(ProcessorCount)
 # Option to build shared libraries (defaults to static)
 option(OPENSSL_SHARED "Build shared libraries instead of static" OFF)
 
+# Option to show OpenSSL build output in real-time
+option(OPENSSL_VERBOSE "Show OpenSSL build output in real-time" ON)
+
+# Optional override: number of parallel jobs for OpenSSL build (Windows jom)
+set(OPENSSL_JOBS "" CACHE STRING "Number of parallel jobs for OpenSSL build on Windows (jom). Defaults to detected core count.")
+
+# Get number of processor cores for parallel builds (with fallbacks)
+ProcessorCount(N)
+if(N EQUAL 0 OR NOT N)
+    if(WIN32 AND DEFINED ENV{NUMBER_OF_PROCESSORS})
+        set(N $ENV{NUMBER_OF_PROCESSORS})
+    else()
+        cmake_host_system_information(RESULT N QUERY NUMBER_OF_LOGICAL_CORES)
+        if(N STREQUAL "")
+            set(N 1)
+        endif()
+    endif()
+endif()
+
+# Determine effective parallel jobs to use for OpenSSL build
+if(OPENSSL_JOBS STREQUAL "")
+    set(OPENSSL_JOBS_EFFECTIVE ${N})
+else()
+    set(OPENSSL_JOBS_EFFECTIVE ${OPENSSL_JOBS})
+endif()
+
 # Require OPENSSL_VERSION to be set - no fallback
 if(NOT DEFINED OPENSSL_VERSION)
     message(FATAL_ERROR "OPENSSL_VERSION must be set. Example: -DOPENSSL_VERSION=openssl-3.5.1")
+endif()
+
+# Show build configuration
+message(STATUS "OpenSSL Configuration:")
+message(STATUS "  Version: ${OPENSSL_VERSION}")
+message(STATUS "  Generator: ${CMAKE_GENERATOR}")
+message(STATUS "  Library Type: ${OPENSSL_SHARED}")
+message(STATUS "  Core Count: ${N}")
+if(OPENSSL_SHARED)
+    message(STATUS "  Building: Shared libraries")
+else()
+    message(STATUS "  Building: Static libraries")
+endif()
+if(OPENSSL_VERBOSE)
+    message(STATUS "  Verbose Output: ON (real-time build output)")
+else()
+    message(STATUS "  Verbose Output: OFF (output logged to files)")
 endif()
 
 FetchContent_Declare(
@@ -22,9 +65,6 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(OpenSSL)
-
-# Get number of processor cores for parallel builds
-ProcessorCount(N)
 
 # Set OpenSSL install directory
 set(OPENSSL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/openssl-install)
@@ -48,8 +88,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     else()
         set(OPENSSL_CONFIGURE_COMMAND ${PERL_EXECUTABLE} ${openssl_SOURCE_DIR}/Configure VC-WIN32 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
-    set(OPENSSL_BUILD_COMMAND nmake)
-    set(OPENSSL_INSTALL_COMMAND nmake install_sw)
+    # Prefer jom for parallel builds; fallback to nmake
+    find_program(JOM_EXECUTABLE NAMES jom)
+    if(JOM_EXECUTABLE)
+        set(OPENSSL_BUILD_COMMAND ${JOM_EXECUTABLE} -j${OPENSSL_JOBS_EFFECTIVE})
+        set(OPENSSL_INSTALL_COMMAND ${JOM_EXECUTABLE} -j${OPENSSL_JOBS_EFFECTIVE} install_sw)
+    else()
+        set(OPENSSL_BUILD_COMMAND nmake)
+        set(OPENSSL_INSTALL_COMMAND nmake install_sw)
+    endif()
     # On Windows, OpenSSL may generate libraries with lib prefix
     set(OPENSSL_LIB_PREFIX "lib")
     if(OPENSSL_SHARED)
@@ -64,9 +111,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     else()
         set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure darwin64-x86_64-cc --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
-    if(NOT N EQUAL 0)
-        set(OPENSSL_BUILD_COMMAND make -j${N})
-        set(OPENSSL_INSTALL_COMMAND make -j${N} install_sw)
+    if(NOT OPENSSL_JOBS_EFFECTIVE EQUAL 0)
+        set(OPENSSL_BUILD_COMMAND make -j${OPENSSL_JOBS_EFFECTIVE})
+        set(OPENSSL_INSTALL_COMMAND make -j${OPENSSL_JOBS_EFFECTIVE} install_sw)
     else()
         set(OPENSSL_BUILD_COMMAND make)
         set(OPENSSL_INSTALL_COMMAND make install_sw)
@@ -86,9 +133,9 @@ else() # Linux and other Unix-like systems
     else()
         set(OPENSSL_CONFIGURE_COMMAND ${openssl_SOURCE_DIR}/Configure linux-x86 --prefix=${OPENSSL_INSTALL_DIR} --openssldir=${OPENSSL_INSTALL_DIR}/ssl ${OPENSSL_SHARED_FLAG} no-tests)
     endif()
-    if(NOT N EQUAL 0)
-        set(OPENSSL_BUILD_COMMAND make -j${N})
-        set(OPENSSL_INSTALL_COMMAND make -j${N} install_sw)
+    if(NOT OPENSSL_JOBS_EFFECTIVE EQUAL 0)
+        set(OPENSSL_BUILD_COMMAND make -j${OPENSSL_JOBS_EFFECTIVE})
+        set(OPENSSL_INSTALL_COMMAND make -j${OPENSSL_JOBS_EFFECTIVE} install_sw)
     else()
         set(OPENSSL_BUILD_COMMAND make)
         set(OPENSSL_INSTALL_COMMAND make install_sw)
@@ -99,6 +146,23 @@ else() # Linux and other Unix-like systems
     else()
         set(OPENSSL_LIB_SUFFIX ".a")
     endif()
+endif()
+
+# Report parallelization details
+message(STATUS "  Parallel jobs: ${OPENSSL_JOBS_EFFECTIVE}")
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    if(JOM_EXECUTABLE)
+        message(STATUS "  Windows make tool: jom (${JOM_EXECUTABLE})")
+    else()
+        message(STATUS "  Windows make tool: nmake (single-threaded). Install jom for -j${OPENSSL_JOBS_EFFECTIVE}.")
+    endif()
+endif()
+
+# On MSVC, enable multi-processor compilation inside cl
+if(MSVC)
+    # Enable MSVC multi-proc and safe concurrent PDB writes
+    set(OPENSSL_BUILD_COMMAND ${CMAKE_COMMAND} -E env "CL=/MP /FS" ${OPENSSL_BUILD_COMMAND})
+    set(OPENSSL_INSTALL_COMMAND ${CMAKE_COMMAND} -E env "CL=/MP /FS" ${OPENSSL_INSTALL_COMMAND})
 endif()
 
 # Determine the library directory used by OpenSSL on Linux
@@ -135,10 +199,14 @@ ExternalProject_Add(openssl_build
         # macOS libraries
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Darwin>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}ssl${OPENSSL_LIB_SUFFIX}>
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},Darwin>:${OPENSSL_INSTALL_DIR}/lib/${OPENSSL_LIB_PREFIX}crypto${OPENSSL_LIB_SUFFIX}>
-    LOG_CONFIGURE ON
-    LOG_BUILD ON
-    LOG_INSTALL ON
-    LOG_OUTPUT_ON_FAILURE ON
+    LOG_CONFIGURE $<IF:$<BOOL:${OPENSSL_VERBOSE}>,OFF,ON>
+    LOG_BUILD $<IF:$<BOOL:${OPENSSL_VERBOSE}>,OFF,ON>
+    LOG_INSTALL $<IF:$<BOOL:${OPENSSL_VERBOSE}>,OFF,ON>
+    LOG_OUTPUT_ON_FAILURE $<IF:$<BOOL:${OPENSSL_VERBOSE}>,OFF,ON>
+    # When OPENSSL_VERBOSE is ON, output goes directly to console
+    USES_TERMINAL_CONFIGURE $<BOOL:${OPENSSL_VERBOSE}>
+    USES_TERMINAL_BUILD $<BOOL:${OPENSSL_VERBOSE}>
+    USES_TERMINAL_INSTALL $<BOOL:${OPENSSL_VERBOSE}>
 )
 
 # Create imported targets for OpenSSL::SSL and OpenSSL::Crypto
