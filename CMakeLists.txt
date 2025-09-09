@@ -91,9 +91,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # Prefer jom for parallel builds; fallback to nmake
     find_program(JOM_EXECUTABLE NAMES jom)
     if(JOM_EXECUTABLE)
-        # Build with parallel jobs, install serially for stability
+        # Build with jom in parallel; use nmake for install to avoid jom install issues
         set(OPENSSL_BUILD_COMMAND ${JOM_EXECUTABLE} -j${OPENSSL_JOBS_EFFECTIVE})
-        set(OPENSSL_INSTALL_COMMAND ${JOM_EXECUTABLE} install_sw)
+        set(OPENSSL_INSTALL_COMMAND nmake install_sw)
     else()
         set(OPENSSL_BUILD_COMMAND nmake)
         set(OPENSSL_INSTALL_COMMAND nmake install_sw)

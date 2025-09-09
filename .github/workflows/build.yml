@@ -77,6 +77,38 @@ jobs:
         cd test
         cmake --build build --config Release
 
+    - name: Show OpenSSL logs on failure (Windows)
+      if: failure() && matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $paths = @(
+          "test/build/openssl_build-prefix/src/openssl_build-stamp/openssl_build-*.log"
+        )
+        foreach ($p in $paths) {
+          Get-ChildItem -Path $p -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Output "`n--- LOG: $($_.FullName) ---"
+            Get-Content $_.FullName -Tail 200
+          }
+        }
+
+    - name: Show OpenSSL logs on failure (Unix)
+      if: failure() && matrix.os != 'windows-latest'
+      run: |
+        for p in test/build/openssl_build-prefix/src/openssl_build-stamp/openssl_build-*.log; do
+          if [ -f "$p" ]; then
+            echo "--- LOG: $p ---"
+            tail -n 200 "$p"
+          fi
+        done
+
+    - name: Upload OpenSSL logs artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: openssl-logs-${{ matrix.os }}-${{ matrix.build_type }}
+        path: |
+          test/build/openssl_build-prefix/src/openssl_build-stamp/openssl_build-*.log
+
     - name: Test (Ubuntu/macOS)
       if: matrix.os != 'windows-latest'
       run: |
